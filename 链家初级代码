@@ -1,0 +1,53 @@
+# 需要先安装并导入requests和bs4两个库，re是python自带，可以直接导入
+import requests
+from bs4 import BeautifulSoup
+import re
+
+# 链家的二手房基础页面只显示最多100页，每页30个房源的数据，也就是用这个办法，最多可以拿到3000家房源的数据
+page = 2 # 用于定义页数
+# 先打开一个csv文件，定义好标题，以备数据插入
+with open(r'c:\lianjia.csv','a') as f:
+    f.write('{},{},{},{},{},{},{},{},{},{},{},{},\n'.format('房源编号','小区','商圈','户型','面积','朝向','户型','装修','年代','总价','单价','标题'))
+    for i in range(1,page):
+        url = 'https://xm.lianjia.com/ershoufang/pg'+str(i)
+        # print(url)
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) chrome/87.0.4280.88 Safari/537.36 Edg/87.0.664.66'
+        }
+
+        html = requests.get(url,headers = headers).text
+        soup = BeautifulSoup(html,'html.parser')
+        # print(soup)
+        infos = soup.find('ul',{'class':'sellListContent'}).find_all('li')
+        # print(infos)
+        for info in infos:
+            # 获取房源ID
+            house_id = info.find('div',{'class':'title'}).find('a').get('data-housecode')
+            # print(house_id)
+            # 获取房源标题
+            name = info.find('div',{'class':'title'}).find('a').get_text()
+            # 由于小区名字和小区所属商圈都在class=positionInfo这个切片下面，所以需要先将两个名字放入列表，然后分别提取
+            weizhi = info.find('div',{'class':'positionInfo'}).find_all('a')
+            data_list = []
+            for z in weizhi:
+                data_list.append(z.get_text())
+            xiaoqu = data_list[0]
+            shangquan = data_list[1]
+            # 有了小区名和位置，接下来就是看房子的具体信息，同样需要先转为列表然后切片
+            houseinfo = info.find('div',{'class':'houseInfo'}).get_text()
+            houseinfolist = houseinfo.split('|')
+            roominfo = houseinfolist[0]
+            # 面积是浮点数，要用正则表达式提取
+            mianji = re.findall(r'-?\d+\.?\d*e?-?\d*?',houseinfolist[1])[0]
+            chaoxiang = houseinfolist[2]
+            zhuangxiu = houseinfolist[3]
+            louceng = houseinfolist[4]
+            nian = houseinfolist[5]
+            # louxing = houseinfolist[6]
+            # 接下来是总价
+            totalprice = info.find('div',{'class':'totalPrice'}).find('span').text
+            # 接下来是每平单价，用正则表达式提取整数
+            unitprice = re.sub('\D','',info.find('div', {'class': 'unitPrice'}).find('span').text)
+            # 接下来是存入csv
+
+            f.write('{},{},{},{},{},{},{},{},{},{},{},{},\n'.format(house_id,xiaoqu,shangquan,roominfo,mianji,chaoxiang,zhuangxiu,louceng,nian,totalprice,unitprice,name))
